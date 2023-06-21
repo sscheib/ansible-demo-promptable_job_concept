@@ -6,6 +6,8 @@
     - 'vault.yml'
 
   tasks:
+    - debug:
+        var: lookup('pipe', 'env')
     - name: 'Ensure all variables required are passed'
       ansible.builtin.assert:
         that:
