@@ -2,33 +2,37 @@
 - name: 'Execute a job template with dynamic limits and dynamic instance groups'
   gather_facts: false
   hosts: 'localhost'
-  vars_files:
-    - 'vault.yml'
 
   tasks:
-    - debug:
-        var: lookup('pipe', 'env')
     - name: 'Ensure all variables required are passed'
       ansible.builtin.assert:
         that:
-          - lookup('ansible.builtin.vars', __var, default='') is string
-          - lookup('ansible.builtin.vars', __var, default='') != ''
+          - job_template_name is defined
+          - job_template_name is string
+          - job_template_name != None
+          - job_template_name != ''
+
+    - name: 'Ensure required environment variables are defined'
+      ansible.builtin.assert:
+        that:
+          - lookup('env', __env_var, default='') is string
+          - lookup('env', __env_var, default='') != None
+          - lookup('env', __env_var, default='') != ''
       loop:
-        - 'controller_host'
-        - 'controller_username'
-        - 'controller_password'
-        - 'job_template_name'
+        - 'CONTROLLER_HOST'
+        - 'CONTROLLER_USER'
+        - 'CONTROLLER_PASSWORD'
       loop_control:
-        loop_var: '__var'
+        loop_var: '__env_var'
 
     - name: 'Gather information about the job template'
-      ansible.builtin.set_fact: 
-        __job_template: "{{ q('ansible.controller.controller_api', 'job_templates', 
-                               host=controller_host, username=controller_username, password=controller_password, 
+      ansible.builtin.set_fact:
+        __job_template: "{{ q('ansible.controller.controller_api', 'job_templates',
+                               host=controller_host, username=controller_username, password=controller_password,
                                return_all=true, verify_ssl=false, query_params={'name': job_template_name} ) | first }}"
 
     - name: 'Retrieve name of the used inventory in {{ __job_template.name }}'
-      ansible.builtin.set_fact: 
+      ansible.builtin.set_fact:
         __inventory: "{{ q('ansible.controller.controller_api', 'inventories',
                            host=controller_host, username=controller_username, password=controller_password,
                            return_all=true, verify_ssl=false, query_params={'id': __job_template.inventory} ) | first }}"
@@ -52,9 +56,9 @@
               __hosts_instance_groups | default({}) | combine
               (
                 {
-                  item.variables | from_json | dict2items | selectattr('key', 'equalto', 'instance_group') | map(attribute='value') | first: 
-                    __hosts_instance_groups | default({}) | dict2items | 
-                    selectattr('key', 'equalto', item.variables | from_json | dict2items | 
+                  item.variables | from_json | dict2items | selectattr('key', 'equalto', 'instance_group') | map(attribute='value') | first:
+                    __hosts_instance_groups | default({}) | dict2items |
+                    selectattr('key', 'equalto', item.variables | from_json | dict2items |
                       selectattr('key', 'equalto', 'instance_group') | map(attribute='value') | first) | map(attribute='value', default=[]
                     ) | flatten + [ item.name ]
                 }
