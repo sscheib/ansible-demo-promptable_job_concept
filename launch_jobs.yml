@@ -1,6 +1,9 @@
 ---
 - name: 'Execute a job template with dynamic limits and dynamic instance groups'
+  gather_facts: false
   hosts: 'localhost'
+  vars_files:
+    - 'vault.yml'
 
   tasks:
     - name: 'Ensure all variables required are passed'
