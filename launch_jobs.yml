@@ -49,12 +49,6 @@
                        host=controller_host, username=controller_username, password=controller_password,
                        return_all=true, verify_ssl=false) }}"
 
-    - name: 'Retrieve instances available'
-      ansible.builtin.set_fact:
-        __instance_groups: "{{ q('ansible.controller.controller_api', 'instance_groups',
-                                 host=controller_host, username=controller_username, password=controller_password,
-                                 return_all=true, verify_ssl=false) | selectattr('name', 'search', '^ig-') | map(attribute='name') }}"
-
     - name: 'Map instance groups to hosts'
       ansible.builtin.set_fact:
         __hosts_instance_groups: >
