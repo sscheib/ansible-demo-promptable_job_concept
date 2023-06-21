@@ -20,10 +20,16 @@
           - lookup('env', __env_var, default='') != ''
       loop:
         - 'CONTROLLER_HOST'
-        - 'CONTROLLER_USER'
+        - 'CONTROLLER_USERNAME'
         - 'CONTROLLER_PASSWORD'
       loop_control:
         loop_var: '__env_var'
+
+    - name: 'Set credentials as fact'
+      ansible.builtin.set_fact:
+        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+        controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') }}"
+        controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') }}"
 
     - name: 'Gather information about the job template'
       ansible.builtin.set_fact:
