@@ -1,0 +1,69 @@
+---
+- name: 'Execute a job template with dynamic limits and dynamic instance groups'
+  hosts: 'localhost'
+
+  tasks:
+    - name: 'Ensure all variables required are passed'
+      ansible.builtin.assert:
+        that:
+          - lookup('ansible.builtin.vars', __var, default='') is string
+          - lookup('ansible.builtin.vars', __var, default='') != ''
+      loop:
+        - 'controller_host'
+        - 'controller_username'
+        - 'controller_password'
+        - 'job_template_name'
+      loop_control:
+        loop_var: '__var'
+
+    - name: 'Gather information about the job template'
+      ansible.builtin.set_fact: 
+        __job_template: "{{ q('ansible.controller.controller_api', 'job_templates', 
+                               host=controller_host, username=controller_username, password=controller_password, 
+                               return_all=true, verify_ssl=false, query_params={'name': job_template_name} ) | first }}"
+
+    - name: 'Retrieve name of the used inventory in {{ __job_template.name }}'
+      ansible.builtin.set_fact: 
+        __inventory: "{{ q('ansible.controller.controller_api', 'inventories',
+                           host=controller_host, username=controller_username, password=controller_password,
+                           return_all=true, verify_ssl=false, query_params={'id': __job_template.inventory} ) | first }}"
+
+    - name: 'Retrieve hosts of inventory {{ __inventory.name }}'
+      ansible.builtin.set_fact:
+        __hosts: "{{ q('ansible.controller.controller_api', 'inventories/{{ __job_template.inventory }}/hosts',
+                       host=controller_host, username=controller_username, password=controller_password,
+                       return_all=true, verify_ssl=false) }}"
+
+    - name: 'Retrieve instances available'
+      ansible.builtin.set_fact:
+        __instance_groups: "{{ q('ansible.controller.controller_api', 'instance_groups',
+                                 host=controller_host, username=controller_username, password=controller_password,
+                                 return_all=true, verify_ssl=false) | selectattr('name', 'search', '^ig-') | map(attribute='name') }}"
+
+    - name: 'Map instance groups to hosts'
+      ansible.builtin.set_fact:
+        __hosts_instance_groups: >
+          {{
+              __hosts_instance_groups | default({}) | combine
+              (
+                {
+                  item.variables | from_json | dict2items | selectattr('key', 'equalto', 'instance_group') | map(attribute='value') | first: 
+                    __hosts_instance_groups | default({}) | dict2items | 
+                    selectattr('key', 'equalto', item.variables | from_json | dict2items | 
+                      selectattr('key', 'equalto', 'instance_group') | map(attribute='value') | first) | map(attribute='value', default=[]
+                    ) | flatten + [ item.name ]
+                }
+              )
+          }}
+      loop: '{{ __hosts }}'
+
+    - name: 'Launch jobs'
+      ansible.controller.job_launch:
+        controller_host: '{{ controller_host }}'
+        controller_username: '{{ controller_username }}'
+        controller_password: '{{ controller_password }}'
+        validate_certs: false
+        job_template: '{{ job_template_name }}'
+        instance_groups: '{{ item.key }}'
+        limit: "{{ item.value | join(',') }}"
+      loop: '{{ __hosts_instance_groups | dict2items }}'
